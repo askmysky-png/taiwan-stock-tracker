@@ -116,8 +116,80 @@
         <button onclick="closeChart()">關閉</button>
     </div>
     <script>
-        // 這裡放完整的 JavaScript（API 串接、AI 分析、提醒、頻率設定、圖表）
-        // 使用之前給你的 JS 程式碼，直接貼在這裡
+// 即時通知檢查
+function checkAlertConditions(data) {
+    const alertScore = document.getElementById('alertScore').checked;
+    const alertRSI = document.getElementById('alertRSI').checked;
+    const alertMACD = document.getElementById('alertMACD').checked;
+
+    let shouldNotify = false;
+    let message = `股票 ${data.stockCode} 符合提醒條件：`;
+
+    if (alertScore && data.score >= 80) {
+        shouldNotify = true;
+        message += ' 綜合評分 ≥ 80';
+    }
+    if (alertRSI && parseFloat(data.rsi) < 30) {
+        shouldNotify = true;
+        message += ' RSI < 30';
+    }
+    if (alertMACD && parseFloat(data.macd) > parseFloat(data.signal)) {
+        shouldNotify = true;
+        message += ' MACD 多頭';
+    }
+
+    if (shouldNotify) {
+        sendNotification(message);
+    }
+}
+
+// 發送通知
+function sendNotification(message) {
+    if (Notification.permission === 'granted') {
+        new Notification(message);
+    } else if (Notification.permission !== 'denied') {
+        Notification.requestPermission().then(permission => {
+            if (permission === 'granted') {
+                new Notification(message);
+            }
+        });
+    }
+}
+
+// 在 renderStocks() 中檢查提醒條件
+async function renderStocks() {
+    const stockList = document.getElementById('stockList');
+    stockList.innerHTML = '';
+
+    let stockDataArray = await Promise.all(stocks.map(code => getStockData(code)));
+    stockDataArray.sort((a, b) => b.score - a.score);
+
+    const searchValue = document.getElementById('searchInput').value.trim().toLowerCase();
+    if (searchValue) {
+        stockDataArray = stockDataArray.filter(data => data.stockCode.toLowerCase().includes(searchValue));
+    }
+
+    stockDataArray.forEach(data => {
+        checkAlertConditions(data); // 檢查提醒條件
+
+        const card = document.createElement('div');
+        card.className = 'stock-card';
+        card.innerHTML = `
+            <button class="delete-btn" onclick="deleteStock('${data.stockCode}')">刪除</button>
+            <h3>${data.stockCode}</h3>
+            <p>股價：${data.price} 元 (${data.changePercent.toFixed(2)}%)</p>
+            <p>5日均線：${data.ma5}</p>
+            <p>20日均線：${data.ma20}</p>
+            <p>RSI：${data.rsi}</p>
+            <p>MACD：${data.macd} / Signal：${data.signal}</p>
+            <p><strong>AI 分析：</strong><br>${data.suggestion.join('<br>')}</p>
+            <p><strong>綜合評分：</strong> ${data.score} 分 → ${data.finalAdvice}</p>
+            <button onclick="showChart('${data.stockCode}')">查看圖表</button>
+        `;
+        stockList.appendChild(card);
+    });
+}
     </script>
 </body>
 </html>
+
